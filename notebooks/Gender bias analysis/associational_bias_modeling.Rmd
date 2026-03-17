@@ -27,13 +27,36 @@ bias_data <- bind_rows(romance_bias_data, sci_fi_bias_data, literary_fiction_bia
 ```
 
 ```{r}
-# make a linear model
-model <- lm(gender_bias ~ 0 + dimension * genre, data = bias_data)
-emm <- emmeans(model, ~ dimension * genre)
+library(sandwich)
+library(lmtest)
 
+# Fit model as before
+model <- lm(gender_bias ~ 0 + dimension * genre, data = bias_data)
+
+# Pass robust standard errors to emmeans
+emm <- emmeans(model, ~ dimension * genre, 
+               vcov. = vcovHC(model, type = "HC3"))
 test(emm)
 ```
 
 ```{r}
+plot(residuals(model), type = "l")  # look for trends or patterns over index
+```
 
+```{r}
+library(lmtest)
+bptest(model)  # Breusch-Pagan test, H0 = homoscedasticity
+```
+
+```{r}
+# QQ plot
+plot(model, which = 2)
+
+# Histogram of residuals
+hist(residuals(model), breaks = 30, main = "Histogram of Residuals", 
+     xlab = "Residuals")
+
+# Formal test
+shapiro.test(residuals(model))  # H0 = normality
+                                # note: very sensitive with large samples
 ```
