@@ -1,62 +1,83 @@
+### Import libraries
 ```{r}
 library(pacman)
-pacman::p_load(tidyverse, ggplot2, emmeans)
+pacman::p_load(tidyverse, ggplot2, emmeans, sandwich, lmtest)
 options(scipen = 999)
 ```
 
+### Combine all data saving information on genres and seed
 ```{r}
-# load the data
-romance_bias_data <- read_csv("data/associational_gender_bias/romance_associational_gender_bias.csv")
+read_bias_data <- function(genre, seed) {
+  file <- glue::glue("data/associational_gender_bias/{genre}_{seed}_associational_gender_bias.csv")
+  read_csv(file)
+}
 
-sci_fi_bias_data <- read_csv("data/associational_gender_bias/sci_fi_associational_gender_bias.csv")
+genres <- c("romance", "sci_fi", "literary_fiction")
+seeds  <- c("2000", "42", "123", "999")
 
-literary_fiction_bias_data <- read_csv("data/associational_gender_bias/literary_fiction_associational_gender_bias.csv")
+all_data <- expand_grid(genre = genres, seed = seeds) %>%
+  mutate(data = map2(genre, seed, read_bias_data))
 
-# add genre column
-romance_bias_data <- romance_bias_data %>%
-  mutate(genre = "romance")
+bias_data_all <- all_data %>%
+  unnest(data)
 
-sci_fi_bias_data <- sci_fi_bias_data %>%
-  mutate(genre = "sci-fi")
-
-literary_fiction_bias_data <- literary_fiction_bias_data %>%
-  mutate(genre = "literary fiction")
-
-# bind data together
-bias_data <- bind_rows(romance_bias_data, sci_fi_bias_data, literary_fiction_bias_data)
 ```
 
 ```{r}
-library(sandwich)
-library(lmtest)
-
-# Fit model as before
-model <- lm(gender_bias ~ 0 + dimension * genre, data = bias_data)
-
-# Pass robust standard errors to emmeans
-emm <- emmeans(model, ~ dimension * genre, 
-               vcov. = vcovHC(model, type = "HC3"))
-test(emm)
+bias_data_all %>%
+  count(genre, seed)
 ```
 
+### Test data for model assumptions
 ```{r}
-plot(residuals(model), type = "l")  # look for trends or patterns over index
-```
-
-```{r}
-library(lmtest)
+# test for homoscedasticity
 bptest(model)  # Breusch-Pagan test, H0 = homoscedasticity
 ```
 
 ```{r}
-# QQ plot
-plot(model, which = 2)
-
-# Histogram of residuals
-hist(residuals(model), breaks = 30, main = "Histogram of Residuals", 
-     xlab = "Residuals")
-
-# Formal test
-shapiro.test(residuals(model))  # H0 = normality
-                                # note: very sensitive with large samples
+# test for normaility of gender bias
+shapiro.test(bias_data_all$gender_bias) # H0 = data is normally distributed
+hist(bias_data_all$gender_bias, col='steelblue') # data looks normal though
 ```
+
+### Modeling (very much in the testing phase)
+```{r}
+# Fit model as before
+model <- lm(gender_bias ~ 0 + dimension * genre * seed, data = bias_data_all)
+# no intercept model to compute means for each dimension × genre × seed combination
+
+
+# Use robust standard errors in emmeans
+emm <- emmeans(model, ~ dimension * genre | seed, # compute dimension × genre means separately for each seed
+               vcov. = vcovHC(model, type = "HC3"))# corrects for heteroscedasticity
+
+emm_df <- as.data.frame(emm)
+
+emm_df <- emm_df %>%
+  group_by(dimension, genre) %>%
+  summarise(
+    mean_bias = mean(emmean),
+    sd_bias   = sd(emmean),
+    lower_CI = mean_bias - 1.96 * sd_bias, # confidence interval for mean bias across seeds
+    upper_CI = mean_bias + 1.96 * sd_bias # confidence interval for mean bias across seeds
+  )
+```
+
+### Attempting to plot mean bias with confidence intervals across seeds (error bars represent variability across seeds, not within seed)
+```{r}
+# Plot mean ± CI (only plotting error across seeds)
+ggplot(emm_df, aes(x = dimension, y = mean_bias, color = dimension)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI), width = 0.2) +
+  facet_wrap(~ genre) +
+  labs(
+    x = "Dimension",
+    y = "Mean Gender Bias",
+    color = "Dimension",
+    title = "Mean Gender Bias Across Dimensions and Genres with 95% CI"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "bottom")
+```
+
+
