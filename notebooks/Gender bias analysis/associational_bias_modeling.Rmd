@@ -1,19 +1,19 @@
 ### Import libraries
 ```{r}
 library(pacman)
-pacman::p_load(tidyverse, ggplot2, emmeans, sandwich, lmtest)
+pacman::p_load(tidyverse, ggplot2, emmeans, sandwich, lmtest, lmerTest, performance, see)
 options(scipen = 999)
 ```
 
 ### Combine all data saving information on genres and seed
 ```{r}
 read_bias_data <- function(genre, seed) {
-  file <- glue::glue("data/associational_gender_bias/{genre}_{seed}_associational_gender_bias.csv")
+  file <- glue::glue("data/associational_gender_bias/{genre}_gender_bias_seed_{seed}.csv")
   read_csv(file)
 }
 
-genres <- c("romance", "sci_fi", "literary_fiction")
-seeds  <- c("2000", "42", "123", "999")
+genres <- c("romance", "sci-fi", "literary fiction")
+seeds  <- c("1", "7", "13", "42", "99", "123", "256", "512", "777", "999")
 
 all_data <- expand_grid(genre = genres, seed = seeds) %>%
   mutate(data = map2(genre, seed, read_bias_data))
@@ -28,56 +28,68 @@ bias_data_all %>%
   count(genre, seed)
 ```
 
-### Test data for model assumptions
 ```{r}
-# test for homoscedasticity
-bptest(model)  # Breusch-Pagan test, H0 = homoscedasticity
+# create a dataset for each unique seed
+groups <- bias_data_all %>%
+  group_by(seed) %>%
+  group_split()
+
+keys <- bias_data_all %>%
+  distinct(seed) %>%
+  pull(seed)
+
+names(groups) <- paste0("seed_", keys)
+```
+
+### Modeling (including random intercept for seed to account for variability across seeds)
+```{r}
+# Random-intercept model for seed
+model <- lmerTest::lmer(
+  gender_bias ~  dimension * genre + (1 | seed),
+  data = bias_data_all
+)
+# no intercept model to compute means for each dimension × genre combination
+
+summary(model) # random effects are 0
 ```
 
 ```{r}
-# test for normaility of gender bias
-shapiro.test(bias_data_all$gender_bias) # H0 = data is normally distributed
-hist(bias_data_all$gender_bias, col='steelblue') # data looks normal though
+performance::check_model(model)
 ```
 
-### Modeling (very much in the testing phase)
+### Fit a simpler model
+
 ```{r}
-# Fit model as before
-model <- lm(gender_bias ~ 0 + dimension * genre * seed, data = bias_data_all)
-# no intercept model to compute means for each dimension × genre × seed combination
-
-
-# Use robust standard errors in emmeans
-emm <- emmeans(model, ~ dimension * genre | seed, # compute dimension × genre means separately for each seed
-               vcov. = vcovHC(model, type = "HC3"))# corrects for heteroscedasticity
-
-emm_df <- as.data.frame(emm)
-
-emm_df <- emm_df %>%
-  group_by(dimension, genre) %>%
-  summarise(
-    mean_bias = mean(emmean),
-    sd_bias   = sd(emmean),
-    lower_CI = mean_bias - 1.96 * sd_bias, # confidence interval for mean bias across seeds
-    upper_CI = mean_bias + 1.96 * sd_bias # confidence interval for mean bias across seeds
-  )
+# read romance_gender_bias_averaged_seeds.csv
+romance_averaged = read_csv("data/associational_gender_bias/romance_gender_bias_averaged_seeds.csv")
+lit_fic_averaged = read_csv("data/associational_gender_bias/literary_fiction_gender_bias_averaged_seeds.csv")
+sci_fi_averaged = read_csv("data/associational_gender_bias/sci_fi_gender_bias_averaged_seeds.csv")
 ```
 
-### Attempting to plot mean bias with confidence intervals across seeds (error bars represent variability across seeds, not within seed)
+
 ```{r}
-# Plot mean ± CI (only plotting error across seeds)
-ggplot(emm_df, aes(x = dimension, y = mean_bias, color = dimension)) +
-  geom_point(size = 3) +
-  geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI), width = 0.2) +
-  facet_wrap(~ genre) +
-  labs(
-    x = "Dimension",
-    y = "Mean Gender Bias",
-    color = "Dimension",
-    title = "Mean Gender Bias Across Dimensions and Genres with 95% CI"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(legend.position = "bottom")
+# Combine into one dataset
+bias_data_averaged <- bind_rows(
+  romance_averaged %>% mutate(genre = "romance"),
+  lit_fic_averaged %>% mutate(genre = "literary_fiction"),
+  sci_fi_averaged %>% mutate(genre = "sci-fi")
+)
+```
+
+
+```{r}
+model_lm <- lm(gender_bias ~ dimension * genre, data = bias_data_averaged)
+summary(model_lm)
+```
+
+```{r}
+emm <- emmeans(model_lm, ~ dimension * genre)
+summary(emm, infer = c(TRUE, TRUE), adjust = "fdr")
+```
+
+
+```{r}
+performance::check_model(model_lm)
 ```
 
 
