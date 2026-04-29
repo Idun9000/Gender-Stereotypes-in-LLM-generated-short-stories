@@ -1,0 +1,77 @@
+```{r}
+library(pacman)
+pacman::p_load(tidyverse, ggplot2, emmeans, sandwich, lmtest, lmerTest, performance, see)
+options(scipen = 999)
+```
+
+```{r}
+setwd("/Users/tildeidunsloth/Desktop/Thesis")
+SRL_data <- read_csv("data/SRL/srl_long_format.csv")
+```
+
+
+```{r}
+baseline <- SRL_data %>%
+  group_by(genre, role) %>%
+  summarise(
+    p_male_baseline = mean(gender_bin),
+    logodds_baseline = log(p_male_baseline / (1 - p_male_baseline))
+  )
+
+SRL_data <- SRL_data %>%
+  left_join(baseline, by = c("genre", "role"))
+```
+
+
+```{r}
+model <- glm(
+  gender_bin ~ verb_lexname * genre * role,
+  data = SRL_data,
+  family = binomial(link = "logit")
+)
+```
+
+
+
+
+```{r}
+# Get estimated marginal means on the probability scale
+emm <- emmeans(model,
+               ~ verb_lexname | genre + role,
+               type = "response")  # converts to probability
+
+emm_df <- as.data.frame(emm)
+# emm_df now has: verb_lexname, genre, role, prob (= P(male)), SE, asymp.LCL, asymp.UCL
+
+# Add significance vs. baseline
+emm_df <- emm_df %>%
+  left_join(baseline, by = c("genre", "role")) %>%
+  mutate(
+    percent_male = prob * 100,
+    # Test: is estimated prob different from baseline?
+    z = (prob - p_male_baseline) / SE,
+    p_val = 2 * pnorm(-abs(z)),
+    p_adj = p.adjust(p_val, method = "fdr"),  # FDR correction across all cells
+    stars = case_when(
+      p_adj < 0.001 ~ "***",
+      p_adj < 0.01  ~ "**",
+      p_adj < 0.05  ~ "*",
+      TRUE          ~ ""
+    )
+  )
+```
+
+
+```{r}
+emm_df
+
+```
+
+
+
+```{r}
+# save plot_df to csv
+write_csv(emm_df, "/Users/tildeidunsloth/Desktop/Thesis/data/SRL/srl_plot_data.csv")
+```
+
+
