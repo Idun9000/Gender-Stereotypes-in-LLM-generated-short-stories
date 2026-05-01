@@ -48,7 +48,6 @@ model <- lmerTest::lmer(
   gender_bias ~  dimension * genre + (1 | seed),
   data = bias_data_all
 )
-# no intercept model to compute means for each dimension × genre combination
 
 summary(model) # random effects are 0
 ```

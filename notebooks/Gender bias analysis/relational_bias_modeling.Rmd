@@ -32,8 +32,6 @@ model <- glm(
 ```
 
 
-
-
 ```{r}
 # Get estimated marginal means on the probability scale
 emm <- emmeans(model,
@@ -41,7 +39,6 @@ emm <- emmeans(model,
                type = "response")  # converts to probability
 
 emm_df <- as.data.frame(emm)
-# emm_df now has: verb_lexname, genre, role, prob (= P(male)), SE, asymp.LCL, asymp.UCL
 
 # Add significance vs. baseline
 emm_df <- emm_df %>%
@@ -60,13 +57,6 @@ emm_df <- emm_df %>%
     )
   )
 ```
-
-
-```{r}
-emm_df
-
-```
-
 
 
 ```{r}
