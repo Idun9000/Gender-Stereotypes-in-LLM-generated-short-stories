@@ -58,6 +58,10 @@ emm_df <- emm_df %>%
   )
 ```
 
+```{r}
+# performance checks
+performance::check_model(model)
+```
 
 ```{r}
 # save plot_df to csv
