@@ -20,3 +20,6 @@ sentence_transformers
 collections
 gensim
 concurrent.futures
+nltk.corpus
+hanlp
+csv

@@ -59,12 +59,7 @@ emm_df <- emm_df %>%
 ```
 
 ```{r}
-# performance checks
-performance::check_model(model)
-```
-
-```{r}
-# save plot_df to csv
+# save emm_df to csv
 write_csv(emm_df, "/Users/tildeidunsloth/Desktop/Thesis/data/SRL/srl_plot_data.csv")
 ```
 
