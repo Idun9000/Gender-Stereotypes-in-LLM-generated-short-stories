@@ -22,10 +22,14 @@ SRL_data <- SRL_data %>%
   left_join(baseline, by = c("genre", "role"))
 ```
 
+```{r}
+baseline
+```
+
 
 ```{r}
 model <- glm(
-  gender_bin ~ verb_lexname * genre * role,
+  gender_bin ~ verb_lexname * genre,
   data = SRL_data,
   family = binomial(link = "logit")
 )
@@ -35,14 +39,14 @@ model <- glm(
 ```{r}
 # Get estimated marginal means on the probability scale
 emm <- emmeans(model,
-               ~ verb_lexname | genre + role,
+               ~ verb_lexname | genre,
                type = "response")  # converts to probability
 
 emm_df <- as.data.frame(emm)
 
 # Add significance vs. baseline
 emm_df <- emm_df %>%
-  left_join(baseline, by = c("genre", "role")) %>%
+  left_join(baseline, by = c("genre")) %>%
   mutate(
     percent_male = prob * 100,
     # Test: is estimated prob different from baseline?

@@ -12,7 +12,7 @@ read_bias_data <- function(genre, seed) {
   read_csv(file)
 }
 
-genres <- c("romance", "sci-fi", "literary fiction")
+genres <- c("romance", "sci_fi", "literary_fiction")
 seeds  <- c("1", "7", "13", "42", "99", "123", "256", "512", "777", "999")
 
 all_data <- expand_grid(genre = genres, seed = seeds) %>%
@@ -71,7 +71,7 @@ sci_fi_averaged = read_csv("data/associational_gender_bias/sci_fi_gender_bias_av
 bias_data_averaged <- bind_rows(
   romance_averaged %>% mutate(genre = "romance"),
   lit_fic_averaged %>% mutate(genre = "literary_fiction"),
-  sci_fi_averaged %>% mutate(genre = "sci-fi")
+  sci_fi_averaged %>% mutate(genre = "sci_fi")
 )
 ```
 
